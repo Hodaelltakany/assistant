@@ -610,6 +610,52 @@ def last_ai_text(history):
     return ""
 
 
+# ---------------- ملخص المكالمة ----------------
+def summarize_call_sync(history):
+    """يعمل ملخص مكتوب + نص المكالمة ويحفظهم في call_summary.txt."""
+    lines = []
+    for m in history[2:]:  # بنتخطى رسالة التعليمات الأولى
+        who = "سلمى" if m["role"] == "assistant" else "المتصلة"
+        lines.append(f'{who}: {m["content"].replace("[END_CALL]", "").strip()}')
+    transcript = "\n".join(lines)
+
+    summary = "تعذر عمل الملخص."
+    if transcript:
+        try:
+            res = groq_client.chat.completions.create(
+                model=ACTIVE_MODEL,
+                temperature=0.2,
+                max_tokens=500,
+                messages=[
+                    {"role": "system", "content": (
+                        "لخّص المكالمة دي بالعربي في نقاط قصيرة: إيه اللي المتصلة طلبته أو سألت عنه، "
+                        "وإيه الردود المهمة، وأي حاجة محتاجة متابعة. اعتمد على النص بس ومتضيفش حاجة من عندك.")},
+                    {"role": "user", "content": transcript},
+                ],
+            )
+            summary = (res.choices[0].message.content or "").strip() or summary
+        except Exception as e:
+            print("تعذر عمل الملخص:", e)
+
+    with open("call_summary.txt", "w", encoding="utf-8") as f:
+        f.write("ملخص المكالمة\n=============\n" + summary + "\n\nنص المكالمة\n===========\n" + transcript + "\n")
+
+    print("\n===== ملخص المكالمة =====\n" + summary + "\n\n===== نص المكالمة =====\n" + transcript + "\n")
+    return summary, transcript
+
+
+async def send_call_summary(app, history):
+    """يعمل الملخص ويبعته على تليجرام (Saved Messages)."""
+    try:
+        loop = asyncio.get_running_loop()
+        summary, _ = await loop.run_in_executor(None, summarize_call_sync, history)
+        await app.send_message("me", ("📞 ملخص المكالمة\n\n" + summary)[:4000])
+        await app.send_document("me", "call_summary.txt", caption="نص المكالمة كامل")
+        print("✅ الملخص اتبعت على تليجرام.")
+    except Exception as e:
+        print("تعذر إرسال الملخص:", e)
+
+
 # ---------------- المكالمة ----------------
 async def start_smart_call(app, call_py):
     print(f"جاري الاتصال بـ {SISTER_PHONE}...")
@@ -681,6 +727,7 @@ async def start_smart_call(app, call_py):
                 print("تم إنهاء المكالمة بوداع لطيف.")
                 break
 
+        await send_call_summary(app, history)
         await call_py.leave_call(chat_id)
         print("تم إغلاق المكالمة.")
 
