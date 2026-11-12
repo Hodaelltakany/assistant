@@ -41,7 +41,7 @@ GROQ_SEARCH_MODELS = ["groq/compound-mini", "groq/compound"]
 OWNER_NAME = "هدى"            # صاحبة المساعدة (مش اللي بتكلمها سلمى)
 ASSISTANT_NAME = "سلمى"
 SISTER_PHONE = "+201041466865"
-CALL_TIME = "2026-11-12 23:00:00"               # فاضي = فوراً، أو "2026-11-12 19:00:00"
+CALL_TIME = "2026-11-12 23:10:00"               # فاضي = فوراً، أو "2026-11-12 19:00:00"
 ENABLE_WEB_SEARCH = True
 
 # إعدادات الاستماع
