@@ -738,5 +738,24 @@ async def main():
     await app.stop()
 
 
-if __name__ == "__main__":
-    asyncio.run(main())
+   ```python
+   import threading
+   from http.server import HTTPServer, BaseHTTPRequestHandler
+
+
+   class DummyHandler(BaseHTTPRequestHandler):
+
+     def do_GET(self):
+       self.send_response(200)
+       self.end_headers()
+       self.wfile.write(b"Salma Assistant is Running!")
+
+
+   def start_dummy_server():
+     port = int(os.environ.get("PORT", 10000))
+     HTTPServer(("0.0.0.0", port), DummyHandler).serve_forever()
+
+
+   if __name__ == "__main__":
+     threading.Thread(target=start_dummy_server, daemon=True).start()
+     asyncio.run(main())
