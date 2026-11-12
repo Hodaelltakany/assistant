@@ -737,6 +737,5 @@ async def main():
     await start_smart_call(app, call_py)
     await app.stop()
 
-   if __name__ == "__main__":
-     threading.Thread(target=start_dummy_server, daemon=True).start()
-     asyncio.run(main())
+if __name__ == "__main__":
+  asyncio.run(main())
