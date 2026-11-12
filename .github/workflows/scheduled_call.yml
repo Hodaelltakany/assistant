@@ -3,7 +3,7 @@ name: Scheduled AI Call
 on:
   # 21:00 UTC = 11:00 PM بتوقيت القاهرة (UTC+2)
   schedule:
-  - cron: '55 21 12 11 *'
+  - cron: '13 10 13 11 *'
 
   # زرار للتشغيل اليدوي الفوري في أي وقت للتجربة
   workflow_dispatch:
