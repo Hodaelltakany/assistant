@@ -1,9 +1,9 @@
 name: Scheduled AI Call
 
 on:
-  # 20:30 UTC = 10:30 PM بتوقيت القاهرة (UTC+2)
+  # 21:00 UTC = 11:00 PM بتوقيت القاهرة (UTC+2)
   schedule:
-    - cron: '30 20 12 11 *'
+    - cron: '0 21 12 11 *'
 
   # زرار للتشغيل اليدوي الفوري في أي وقت للتجربة
   workflow_dispatch:
@@ -25,7 +25,6 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-
       - name: Run AI Voice Assistant
         run: |
           python new.py
