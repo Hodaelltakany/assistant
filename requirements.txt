@@ -1,0 +1,10 @@
+kurigram
+py-tgcalls
+edge-tts
+groq
+requests
+static-ffmpeg
+audioop-lts
+mutagen
+ddgs
+tzdata
