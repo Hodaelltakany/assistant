@@ -1,0 +1,1 @@
+[![Scheduled AI Call](https://github.com/Mayarltakany/assistant/actions/workflows/scheduled_call.yml/badge.svg?branch=main&event=schedule)](https://github.com/Mayarltakany/assistant/actions/workflows/scheduled_call.yml)
