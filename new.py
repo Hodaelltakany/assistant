@@ -688,13 +688,19 @@ async def start_smart_call(app, call_py):
         pre_roll_buffer.clear()
 
         unclear_streak = 0
+        silent_streak = 0
 
         for turn in range(30):
             print("🎤 تفضلي بالكلام...")
             got_audio = await listen_for_turn()
             if not got_audio:
+                silent_streak += 1
                 print("صمت...")
+                if silent_streak >= 6:
+                    print("صمت طويل، هقفل المكالمة.")
+                    break
                 continue
+            silent_streak = 0
 
             t0 = asyncio.get_event_loop().time()
             wav = save_wav_16k(recorded_audio_buffer, f"sister_{turn}.wav")
@@ -727,12 +733,22 @@ async def start_smart_call(app, call_py):
                 print("تم إنهاء المكالمة بوداع لطيف.")
                 break
 
-        await send_call_summary(app, history)
         await call_py.leave_call(chat_id)
         print("تم إغلاق المكالمة.")
 
     except Exception as e:
         print(f"حدث خطأ: {e}")
+
+    finally:
+        # الملخص بيتبعت في كل الحالات (حتى لو المكالمة اتقفلت فجأة أو حصل خطأ)
+        spoke = any(m["role"] == "user" for m in history[2:])
+        if spoke:
+            await send_call_summary(app, history)
+        else:
+            try:
+                await app.send_message("me", "📞 المكالمة خلصت من غير ما حد يتكلم (أو فشل الاتصال).")
+            except Exception as e:
+                print("تعذر إرسال الإشعار:", e)
 
 
 async def main():
