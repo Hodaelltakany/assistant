@@ -29,8 +29,8 @@ except ImportError:
 
 # ================= الإعدادات =================
 # المفاتيح مكتوبة هنا مؤقتاً لحد ما نخلص الاختبار (ولو متغير بيئة موجود بياخد الأولوية)
-API_ID = int(os.getenv("TG_API_ID", "30676782"))
-API_HASH = os.getenv("TG_API_HASH", "070b5ffc9d8012291beedb084417c429")
+API_ID = int(os.getenv("TG_API_ID", "39154761"))
+API_HASH = os.getenv("TG_API_HASH", "6d9a4d05676699954be3a2baf7fcbd8d")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "sk_ae707d2f2ac9c2b95d2294cbc3cd6fa46457c99dd88788de")
 ELEVENLABS_VOICE_ID = "pFZP5JQG7iQjIQuC4Bku"
