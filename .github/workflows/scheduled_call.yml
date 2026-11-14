@@ -2,8 +2,8 @@ name: Scheduled AI Call
 
 on:
   schedule:
-    # 23:23 UTC = 01:23 ص بتوقيت القاهرة (UTC+2)
-    - cron: '23 23 * * *'
+    # 12:00 UTC = 01:23 ص بتوقيت القاهرة (UTC+2)
+    - cron: '00 12 * * *'
   workflow_dispatch:
 
 jobs:
