@@ -11,9 +11,7 @@ import struct
 import audioop  # لو بايثون 3.13+: pip install audioop-lts
 import requests
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta
-from pathlib import Path
-from zoneinfo import ZoneInfo
+from datetime import datetime
 from pyrogram import Client
 from pytgcalls import PyTgCalls, filters as fl
 from pytgcalls.types import MediaStream, RecordStream, AudioQuality, StreamFrames, Direction
@@ -29,10 +27,8 @@ except ImportError:
     except ImportError:
         DDGS = None
 
-CAIRO = ZoneInfo("Africa/Cairo")
-
 # ================= الإعدادات =================
-# المفاتيح من متغيرات البيئة (GitHub Secrets). متكتبيهاش في الكود.
+# المفاتيح مكتوبة هنا مؤقتاً لحد ما نخلص الاختبار (ولو متغير بيئة موجود بياخد الأولوية)
 API_ID = int(os.getenv("TG_API_ID", "30676782"))
 API_HASH = os.getenv("TG_API_HASH", "070b5ffc9d8012291beedb084417c429")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
@@ -44,8 +40,8 @@ GROQ_SEARCH_MODELS = ["groq/compound-mini", "groq/compound"]
 
 OWNER_NAME = "هدى"            # صاحبة المساعدة (مش اللي بتكلمها سلمى)
 ASSISTANT_NAME = "سلمى"
-SISTER_PHONE = ""  # بيتحدد من كل مكالمة في schedule.json
-SCHEDULE_FILE = Path(__file__).with_name("schedule.json")
+SISTER_PHONE = "+201041466865"
+CALL_TIME = ""               # فاضي = فوراً، أو "2026-11-12 19:00:00"
 ENABLE_WEB_SEARCH = True
 
 # إعدادات الاستماع
@@ -61,9 +57,6 @@ NO_SPEECH_MAX = 0.6           # فوق الرقم ده المقطع يعتبر �
 MIN_AVG_LOGPROB = -0.9        # تحت الرقم ده التفريغ مش مضمون، فنطلب إعادة
 MAX_UNCLEAR_IN_ROW = 2        # بعد كده نقبل الكلام زي ما هو بدل ما نلف في دايرة
 
-# لو الـ job صحي متأخر عن الميعاد بأكتر من كده (بالدقايق) نتخطى المكالمة
-MAX_LATE_MINUTES = 30
-
 UNCLEAR_PHRASE = "معلش مسمعتش كويس، ممكن تعيدي تاني؟"
 
 SMART_AI_PROMPT = f"""
@@ -78,7 +71,7 @@ SMART_AI_PROMPT = f"""
 - في أول رد بس: قولي ألو وعرّفي نفسك بسرعة إنك {ASSISTANT_NAME} المساعدة الذكية بتاعة {OWNER_NAME}، واسألي "أقدر أساعدك في إيه؟".
 
 الفهم:
-- الكلام جاي من تفريغ صوتي، فالأسماء ممكن تتهجّى غلط بحرف أو اتنين. لو معاكي نتايج بحث فيها الاسم الصح، اعتمدي عليه وجاوبي مباشرة. اطلبي منها تعيد بس لو الجملة ناقصة فعلاً ومفيش نتايج.
+- الكلام جاي من تفريغ صوتي، فممكن فيه كلمة غلط. لو جملة مش منطقية أو ناقصة، اطلبي منها تعيد بلطف بدل ما تخمّني المقصود.
 - افهمي العامية المصرية والكلمات الإنجليزي المعرّبة (تاسك، ميتينج، أوكي، ديدلاين، أبديت، إيميل) من غير ما تغيّري أو تصحّحي كلامها.
 
 الدقة (أهم حاجة):
@@ -93,7 +86,7 @@ SMART_AI_PROMPT = f"""
 - ممنوع الإيموجي والرموز والنجوم والترقيم بالأرقام. اكتبي الأرقام بالحروف لأنها هتتنطق.
 - لو بتقفل المكالمة (قالت سلام، باي، هقفل، مع السلامة)، ردي بوداع لطيف واكتبي في الآخر [END_CALL].
 
-تاريخ النهاردة: {datetime.now(CAIRO).strftime("%Y-%m-%d")}.
+تاريخ النهاردة: {datetime.now().strftime("%Y-%m-%d")}.
 """
 # =============================================
 
@@ -297,7 +290,8 @@ SEARCH_PLANNER_PROMPT = f"""أنت مصنّف داخلي. اقرأ آخر جمل
 - news: أخبار أو أحداث حديثة أو نتايج.
 - general: أي حاجة تانية (معلومة، تعريف، معنى كلمة، شخص، مكان، منتج، سعر دهب...).
 في query اكتب عبارة بحث كاملة وواضحة بالعربي، وفي query_en نفس العبارة بالإنجليزي.
-تاريخ النهاردة: {datetime.now(CAIRO).strftime("%Y-%m-%d")}.
+- الكلام جاي من تفريغ صوتي، فالأسماء ممكن تتهجّى غلط بحرف أو اتنين. لو معاكي نتايج بحث فيها الاسم الصح، اعتمدي عليه وجاوبي مباشرة. اطلبي منها تعيد بس لو الجملة ناقصة فعلاً ومفيش نتايج.
+تاريخ النهاردة: {datetime.now().strftime("%Y-%m-%d")}.
 رجّع JSON فقط بدون أي كلام تاني:
 {{"search": true, "type": "general", "query": "...", "query_en": "...", "place": "", "from": "", "to": ""}}  أو  {{"search": false}}"""
 
@@ -500,8 +494,6 @@ def gather_context(plan):
         except Exception:
             pass
     ex.shutdown(wait=False)
-    # ويكيبيديا الأول لأنها الأدق في الأسماء
-    parts.sort(key=lambda p: 0 if p.startswith("- (ويكيبيديا") else 1)
     return "\n".join(parts)[:3500] if parts else None
 
 
@@ -515,17 +507,6 @@ def answer_with_search_sync(user_text, history):
             context = gather_context(plan)
             if context:
                 print("نتايج البحث:\n" + context)
-                fixed = str(plan.get("query") or user_text).strip()
-                if fixed != user_text:
-                    # نخلي التاريخ نفسه يشيل الصيغة المصحّحة عشان الأدوار الجاية متتلخبطش
-                    history[-1]["content"] = f"{user_text} (المقصود: {fixed})"
-                context = (
-                    f"الجملة زي ما اتسمعت (ممكن فيها غلطة في هجاء اسم أو كلمة): «{user_text}»\n"
-                    f"المقصود بعد التصحيح: «{fixed}»\n"
-                    "قاعدة مهمة: لو الاسم في نتايج البحث بيختلف عن الجملة المسموعة بحرف أو اتنين "
-                    "فالاسم اللي في النتايج هو الصح. جاوبي عليه مباشرة بنفس هجاء النتايج، "
-                    "ومتقوليش إنك مش فاهمة، ومتجاوبيش عن الاسم المسموع.\n\n" + context
-                )
             else:
                 print("مفيش نتايج بحث.")
     return ask_groq_sync(history, search_context=context)
@@ -677,7 +658,6 @@ async def send_call_summary(app, history):
 
 # ---------------- المكالمة ----------------
 async def start_smart_call(app, call_py):
-    success = False
     print(f"جاري الاتصال بـ {SISTER_PHONE}...")
     history = [{"role": "system", "content": SMART_AI_PROMPT}]
     loop = asyncio.get_running_loop()
@@ -703,7 +683,6 @@ async def start_smart_call(app, call_py):
 
         await call_py.play(chat_id, MediaStream(welcome_file))
         print("✅ بدأ الاتصال!")
-        success = True
         await call_py.record(chat_id, RecordStream(True, AudioQuality.HIGH))
         await asyncio.sleep(audio_duration(welcome_file, clean) + 0.35)
         pre_roll_buffer.clear()
@@ -741,7 +720,7 @@ async def start_smart_call(app, call_py):
                 continue
             unclear_streak = 0
 
-            history.append({"role": "user", "content": text})  # النص زي ما هو من Whisper
+            history.append({"role": "user", "content": text})  # النص زي ما هو من غير تعديل
             raw = await loop.run_in_executor(None, answer_with_search_sync, text, history)
             history.append({"role": "assistant", "content": raw})
             should_end = "[END_CALL]" in raw
@@ -771,86 +750,8 @@ async def start_smart_call(app, call_py):
             except Exception as e:
                 print("تعذر إرسال الإشعار:", e)
 
-    return success
-
-
-def load_schedule():
-    """يقرأ schedule.json ويتحقق من بنيته."""
-    if not SCHEDULE_FILE.exists():
-        raise FileNotFoundError(f"ملف الجدولة غير موجود: {SCHEDULE_FILE}")
-    with SCHEDULE_FILE.open("r", encoding="utf-8") as f:
-        data = json.load(f)
-    if not isinstance(data.get("calls"), list):
-        raise ValueError("schedule.json لازم يحتوي على قائمة calls.")
-    return data
-
-
-def save_schedule(data):
-    """يحفظ الحالات بشكل ذري لتقليل احتمال تلف الملف."""
-    temp_file = SCHEDULE_FILE.with_suffix(".tmp")
-    with temp_file.open("w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    temp_file.replace(SCHEDULE_FILE)
-
-
-def parse_call_datetime(value):
-    """يدعم YYYY-MM-DD HH:MM أو YYYY-MM-DD HH:MM:SS بتوقيت القاهرة."""
-    for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S"):
-        try:
-            return datetime.strptime(value, fmt).replace(tzinfo=CAIRO)
-        except ValueError:
-            pass
-    raise ValueError(f"صيغة موعد غير صحيحة: {value!r}")
-
-
-def seconds_until_call(target):
-    """يرجع فرق الوقت بالدقائق/الثواني؛ None لو الموعد متأخر أكثر من الحد المسموح."""
-    wait = (target - datetime.now(CAIRO)).total_seconds()
-    if wait < -MAX_LATE_MINUTES * 60:
-        return None
-    return max(wait, 0.0)
-
 
 async def main():
-    global SISTER_PHONE
-
-    try:
-        schedule = load_schedule()
-    except Exception as e:
-        print(f"❌ تعذر قراءة schedule.json: {e}")
-        return
-
-    now = datetime.now(CAIRO)
-    due_calls = []
-    for index, call in enumerate(schedule["calls"]):
-        if call.get("status", "pending") != "pending":
-            continue
-        phone = str(call.get("phone", "")).strip()
-        if not phone:
-            call["status"] = "failed"
-            call["error"] = "رقم الهاتف فارغ"
-            save_schedule(schedule)
-            continue
-        try:
-            target = parse_call_datetime(str(call.get("datetime", "")))
-        except Exception as e:
-            call["status"] = "failed"
-            call["error"] = str(e)
-            save_schedule(schedule)
-            continue
-
-        wait = seconds_until_call(target)
-        if wait is None:
-            call["status"] = "missed"
-            print(f"⏭️ تخطي {phone}: الموعد {target.strftime('%Y-%m-%d %H:%M')} فات بأكثر من {MAX_LATE_MINUTES} دقيقة.")
-            save_schedule(schedule)
-        elif wait == 0:
-            due_calls.append((index, phone, target))
-
-    if not due_calls:
-        print("مفيش مكالمات مستحقة دلوقتي.")
-        return
-
     app = Client("my_account", api_id=API_ID, api_hash=API_HASH)
     call_py = PyTgCalls(app)
 
@@ -862,20 +763,23 @@ async def main():
             detected_sample_rate = getattr(update.format, "rate", 48000)
             detected_channels = getattr(update.format, "channels", 2)
 
-        now_loop = asyncio.get_event_loop().time()
+        now = asyncio.get_event_loop().time()
         cap = int(bytes_per_second() * PRE_ROLL_SECONDS)
 
         for frame in update.frames:
             data = frame.frame
             level = calculate_rms(data)
             thr = voice_threshold()
+
+            # تتبّع مستوى الضوضاء الخلفية عشان حد الكلام يتظبط لوحده
             if level <= thr:
                 noise_floor = 0.98 * noise_floor + 0.02 * level
+
             if is_recording:
                 recorded_audio_buffer.extend(data)
                 if level > thr:
                     voiced_bytes += len(data)
-                    last_voice_time = now_loop
+                    last_voice_time = now
                     if voiced_bytes >= bytes_per_second() * MIN_SPEECH_SECONDS:
                         has_spoken = True
             else:
@@ -885,23 +789,16 @@ async def main():
 
     await app.start()
     await call_py.start()
-    try:
-        for index, phone, target in due_calls:
-            call = schedule["calls"][index]
-            # نكتب running قبل الاتصال حتى لا يعيد Trigger لاحق الاتصال بنفس الرقم.
-            call["status"] = "running"
-            call["started_at"] = datetime.now(CAIRO).strftime("%Y-%m-%d %H:%M:%S")
-            save_schedule(schedule)
 
-            SISTER_PHONE = phone
-            print(f"📞 موعد مستحق: {phone} — {target.strftime('%Y-%m-%d %H:%M')}")
-            success = await start_smart_call(app, call_py)
-            call["status"] = "completed" if success else "failed"
-            call["finished_at"] = datetime.now(CAIRO).strftime("%Y-%m-%d %H:%M:%S")
-            save_schedule(schedule)
-    finally:
-        await app.stop()
+    if CALL_TIME:
+        target = datetime.strptime(CALL_TIME, "%Y-%m-%d %H:%M:%S")
+        wait = (target - datetime.now()).total_seconds()
+        if wait > 0:
+            print(f"تمت جدولة المكالمة: {CALL_TIME}")
+            await asyncio.sleep(wait)
 
+    await start_smart_call(app, call_py)
+    await app.stop()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+  asyncio.run(main())
