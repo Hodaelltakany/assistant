@@ -32,10 +32,10 @@ CAIRO = ZoneInfo("Africa/Cairo")
 
 # ================= الإعدادات =================
 # المفاتيح من متغيرات البيئة (GitHub Secrets). متكتبيهاش في الكود.
-API_ID = int(os.getenv("TG_API_ID", "0"))
-API_HASH = os.getenv("TG_API_HASH", "")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
+API_ID = int(os.getenv("TG_API_ID", "30676782"))
+API_HASH = os.getenv("TG_API_HASH", "070b5ffc9d8012291beedb084417c429")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "sk_ae707d2f2ac9c2b95d2294cbc3cd6fa46457c99dd88788de")
 ELEVENLABS_VOICE_ID = "pFZP5JQG7iQjIQuC4Bku"
 
 # بحث الويب المدمج في Groq (موديلات compound) بنفس مفتاح Groq من غير كريدتس إضافية
