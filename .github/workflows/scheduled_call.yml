@@ -31,10 +31,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ffmpeg
 
-      - name: Install Python dependencies
+    - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pyrogram tgcrypto pytgcalls static-ffmpeg requests edge-tts groq mutagen ddgs
+          pip install pyrogram tgcrypto static-ffmpeg requests edge-tts groq mutagen ddgs
+          pip install pytgcalls==2.0.0
 
       - name: Run scheduled calls
         env:
