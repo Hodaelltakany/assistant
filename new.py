@@ -11,7 +11,8 @@ import struct
 import audioop  # لو بايثون 3.13+: pip install audioop-lts
 import requests
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from pyrogram import Client
 from pytgcalls import PyTgCalls, filters as fl
 from pytgcalls.types import MediaStream, RecordStream, AudioQuality, StreamFrames, Direction
@@ -27,12 +28,14 @@ except ImportError:
     except ImportError:
         DDGS = None
 
+CAIRO = ZoneInfo("Africa/Cairo")
+
 # ================= الإعدادات =================
-# المفاتيح مكتوبة هنا مؤقتاً لحد ما نخلص الاختبار (ولو متغير بيئة موجود بياخد الأولوية)
-API_ID = int(os.getenv("TG_API_ID", "39154761"))
-API_HASH = os.getenv("TG_API_HASH", "6d9a4d05676699954be3a2baf7fcbd8d")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
-ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "sk_ae707d2f2ac9c2b95d2294cbc3cd6fa46457c99dd88788de")
+# المفاتيح من متغيرات البيئة (GitHub Secrets). متكتبيهاش في الكود.
+API_ID = int(os.getenv("TG_API_ID", "0"))
+API_HASH = os.getenv("TG_API_HASH", "")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
 ELEVENLABS_VOICE_ID = "pFZP5JQG7iQjIQuC4Bku"
 
 # بحث الويب المدمج في Groq (موديلات compound) بنفس مفتاح Groq من غير كريدتس إضافية
@@ -40,8 +43,8 @@ GROQ_SEARCH_MODELS = ["groq/compound-mini", "groq/compound"]
 
 OWNER_NAME = "هدى"            # صاحبة المساعدة (مش اللي بتكلمها سلمى)
 ASSISTANT_NAME = "سلمى"
-SISTER_PHONE = ""
-CALL_TIME = ""               # فاضي = فوراً، أو "2026-11-12 19:00:00"
+SISTER_PHONE = os.getenv("PHONE", "")        # بييجي من الـ workflow
+CALL_TIME = os.getenv("CALL_TIME", "")       # فاضي = فوراً، أو "19:00" بتوقيت القاهرة، أو "2026-11-12 19:00:00"
 ENABLE_WEB_SEARCH = True
 
 # إعدادات الاستماع
@@ -57,6 +60,9 @@ NO_SPEECH_MAX = 0.6           # فوق الرقم ده المقطع يعتبر �
 MIN_AVG_LOGPROB = -0.9        # تحت الرقم ده التفريغ مش مضمون، فنطلب إعادة
 MAX_UNCLEAR_IN_ROW = 2        # بعد كده نقبل الكلام زي ما هو بدل ما نلف في دايرة
 
+# لو الـ job صحي متأخر عن الميعاد بأكتر من كده (بالدقايق) نتخطى المكالمة
+MAX_LATE_MINUTES = 30
+
 UNCLEAR_PHRASE = "معلش مسمعتش كويس، ممكن تعيدي تاني؟"
 
 SMART_AI_PROMPT = f"""
@@ -71,7 +77,7 @@ SMART_AI_PROMPT = f"""
 - في أول رد بس: قولي ألو وعرّفي نفسك بسرعة إنك {ASSISTANT_NAME} المساعدة الذكية بتاعة {OWNER_NAME}، واسألي "أقدر أساعدك في إيه؟".
 
 الفهم:
-- الكلام جاي من تفريغ صوتي، فممكن فيه كلمة غلط. لو جملة مش منطقية أو ناقصة، اطلبي منها تعيد بلطف بدل ما تخمّني المقصود.
+- الكلام جاي من تفريغ صوتي، فالأسماء ممكن تتهجّى غلط بحرف أو اتنين. لو معاكي نتايج بحث فيها الاسم الصح، اعتمدي عليه وجاوبي مباشرة. اطلبي منها تعيد بس لو الجملة ناقصة فعلاً ومفيش نتايج.
 - افهمي العامية المصرية والكلمات الإنجليزي المعرّبة (تاسك، ميتينج، أوكي، ديدلاين، أبديت، إيميل) من غير ما تغيّري أو تصحّحي كلامها.
 
 الدقة (أهم حاجة):
@@ -86,7 +92,7 @@ SMART_AI_PROMPT = f"""
 - ممنوع الإيموجي والرموز والنجوم والترقيم بالأرقام. اكتبي الأرقام بالحروف لأنها هتتنطق.
 - لو بتقفل المكالمة (قالت سلام، باي، هقفل، مع السلامة)، ردي بوداع لطيف واكتبي في الآخر [END_CALL].
 
-تاريخ النهاردة: {datetime.now().strftime("%Y-%m-%d")}.
+تاريخ النهاردة: {datetime.now(CAIRO).strftime("%Y-%m-%d")}.
 """
 # =============================================
 
@@ -290,8 +296,7 @@ SEARCH_PLANNER_PROMPT = f"""أنت مصنّف داخلي. اقرأ آخر جمل
 - news: أخبار أو أحداث حديثة أو نتايج.
 - general: أي حاجة تانية (معلومة، تعريف، معنى كلمة، شخص، مكان، منتج، سعر دهب...).
 في query اكتب عبارة بحث كاملة وواضحة بالعربي، وفي query_en نفس العبارة بالإنجليزي.
-- الكلام جاي من تفريغ صوتي، فالأسماء ممكن تتهجّى غلط بحرف أو اتنين. لو معاكي نتايج بحث فيها الاسم الصح، اعتمدي عليه وجاوبي مباشرة. اطلبي منها تعيد بس لو الجملة ناقصة فعلاً ومفيش نتايج.
-تاريخ النهاردة: {datetime.now().strftime("%Y-%m-%d")}.
+تاريخ النهاردة: {datetime.now(CAIRO).strftime("%Y-%m-%d")}.
 رجّع JSON فقط بدون أي كلام تاني:
 {{"search": true, "type": "general", "query": "...", "query_en": "...", "place": "", "from": "", "to": ""}}  أو  {{"search": false}}"""
 
@@ -494,6 +499,8 @@ def gather_context(plan):
         except Exception:
             pass
     ex.shutdown(wait=False)
+    # ويكيبيديا الأول لأنها الأدق في الأسماء
+    parts.sort(key=lambda p: 0 if p.startswith("- (ويكيبيديا") else 1)
     return "\n".join(parts)[:3500] if parts else None
 
 
@@ -507,6 +514,17 @@ def answer_with_search_sync(user_text, history):
             context = gather_context(plan)
             if context:
                 print("نتايج البحث:\n" + context)
+                fixed = str(plan.get("query") or user_text).strip()
+                if fixed != user_text:
+                    # نخلي التاريخ نفسه يشيل الصيغة المصحّحة عشان الأدوار الجاية متتلخبطش
+                    history[-1]["content"] = f"{user_text} (المقصود: {fixed})"
+                context = (
+                    f"الجملة زي ما اتسمعت (ممكن فيها غلطة في هجاء اسم أو كلمة): «{user_text}»\n"
+                    f"المقصود بعد التصحيح: «{fixed}»\n"
+                    "قاعدة مهمة: لو الاسم في نتايج البحث بيختلف عن الجملة المسموعة بحرف أو اتنين "
+                    "فالاسم اللي في النتايج هو الصح. جاوبي عليه مباشرة بنفس هجاء النتايج، "
+                    "ومتقوليش إنك مش فاهمة، ومتجاوبيش عن الاسم المسموع.\n\n" + context
+                )
             else:
                 print("مفيش نتايج بحث.")
     return ask_groq_sync(history, search_context=context)
@@ -720,7 +738,7 @@ async def start_smart_call(app, call_py):
                 continue
             unclear_streak = 0
 
-            history.append({"role": "user", "content": text})  # النص زي ما هو من غير تعديل
+            history.append({"role": "user", "content": text})  # النص زي ما هو من Whisper
             raw = await loop.run_in_executor(None, answer_with_search_sync, text, history)
             history.append({"role": "assistant", "content": raw})
             should_end = "[END_CALL]" in raw
@@ -751,7 +769,30 @@ async def start_smart_call(app, call_py):
                 print("تعذر إرسال الإشعار:", e)
 
 
+def seconds_until_call():
+    """بيحسب الثواني لحد ميعاد المكالمة بتوقيت القاهرة. None = نتخطى المكالمة (الميعاد فات بكتير)."""
+    if not CALL_TIME:
+        return 0.0
+    now = datetime.now(CAIRO)
+    ct = CALL_TIME.strip()
+    if "-" in ct:  # تاريخ كامل "2026-11-12 19:00:00"
+        target = datetime.strptime(ct, "%Y-%m-%d %H:%M:%S").replace(tzinfo=CAIRO)
+    else:  # ساعة بس "19:00"
+        h, m = map(int, ct.split(":")[:2])
+        target = now.replace(hour=h, minute=m, second=0, microsecond=0)
+        if (target - now).total_seconds() < -12 * 3600:  # الميعاد بعد نص الليل (بكرة)
+            target += timedelta(days=1)
+    wait = (target - now).total_seconds()
+    if wait < -MAX_LATE_MINUTES * 60:
+        return None
+    return max(wait, 0.0)
+
+
 async def main():
+    if not SISTER_PHONE:
+        print("❌ مفيش رقم (متغير PHONE فاضي). وقفت.")
+        return
+
     app = Client("my_account", api_id=API_ID, api_hash=API_HASH)
     call_py = PyTgCalls(app)
 
@@ -790,15 +831,18 @@ async def main():
     await app.start()
     await call_py.start()
 
-    if CALL_TIME:
-        target = datetime.strptime(CALL_TIME, "%Y-%m-%d %H:%M:%S")
-        wait = (target - datetime.now()).total_seconds()
-        if wait > 0:
-            print(f"تمت جدولة المكالمة: {CALL_TIME}")
-            await asyncio.sleep(wait)
+    wait = seconds_until_call()
+    if wait is None:
+        print(f"⏭️ الميعاد {CALL_TIME} فات بأكتر من {MAX_LATE_MINUTES} دقيقة، تم التخطي.")
+        await app.stop()
+        return
+    if wait > 0:
+        print(f"هستنى {int(wait)} ثانية لحد {CALL_TIME} بتوقيت القاهرة")
+        await asyncio.sleep(wait)
 
     await start_smart_call(app, call_py)
     await app.stop()
 
+
 if __name__ == "__main__":
-  asyncio.run(main())
+    asyncio.run(main())
