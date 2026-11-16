@@ -12,6 +12,7 @@ import audioop  # لو بايثون 3.13+: pip install audioop-lts
 import requests
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+from pathlib import Path
 from zoneinfo import ZoneInfo
 from pyrogram import Client
 from pytgcalls import PyTgCalls, filters as fl
@@ -32,10 +33,10 @@ CAIRO = ZoneInfo("Africa/Cairo")
 
 # ================= الإعدادات =================
 # المفاتيح من متغيرات البيئة (GitHub Secrets). متكتبيهاش في الكود.
-API_ID = int(os.getenv("TG_API_ID", "30676782"))
-API_HASH = os.getenv("TG_API_HASH", "070b5ffc9d8012291beedb084417c429")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
-ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "sk_ae707d2f2ac9c2b95d2294cbc3cd6fa46457c99dd88788de")
+API_ID = int(os.getenv("TG_API_ID", "0"))
+API_HASH = os.getenv("TG_API_HASH", "")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
 ELEVENLABS_VOICE_ID = "pFZP5JQG7iQjIQuC4Bku"
 
 # بحث الويب المدمج في Groq (موديلات compound) بنفس مفتاح Groq من غير كريدتس إضافية
@@ -43,8 +44,8 @@ GROQ_SEARCH_MODELS = ["groq/compound-mini", "groq/compound"]
 
 OWNER_NAME = "هدى"            # صاحبة المساعدة (مش اللي بتكلمها سلمى)
 ASSISTANT_NAME = "سلمى"
-SISTER_PHONE = os.getenv("PHONE", "")        # بييجي من الـ workflow
-CALL_TIME = os.getenv("CALL_TIME", "")       # فاضي = فوراً، أو "19:00" بتوقيت القاهرة، أو "2026-11-12 19:00:00"
+SISTER_PHONE = ""  # بيتحدد من كل مكالمة في schedule.json
+SCHEDULE_FILE = Path(__file__).with_name("schedule.json")
 ENABLE_WEB_SEARCH = True
 
 # إعدادات الاستماع
@@ -676,6 +677,7 @@ async def send_call_summary(app, history):
 
 # ---------------- المكالمة ----------------
 async def start_smart_call(app, call_py):
+    success = False
     print(f"جاري الاتصال بـ {SISTER_PHONE}...")
     history = [{"role": "system", "content": SMART_AI_PROMPT}]
     loop = asyncio.get_running_loop()
@@ -701,6 +703,7 @@ async def start_smart_call(app, call_py):
 
         await call_py.play(chat_id, MediaStream(welcome_file))
         print("✅ بدأ الاتصال!")
+        success = True
         await call_py.record(chat_id, RecordStream(True, AudioQuality.HIGH))
         await asyncio.sleep(audio_duration(welcome_file, clean) + 0.35)
         pre_roll_buffer.clear()
@@ -768,29 +771,84 @@ async def start_smart_call(app, call_py):
             except Exception as e:
                 print("تعذر إرسال الإشعار:", e)
 
+    return success
 
-def seconds_until_call():
-    """بيحسب الثواني لحد ميعاد المكالمة بتوقيت القاهرة. None = نتخطى المكالمة (الميعاد فات بكتير)."""
-    if not CALL_TIME:
-        return 0.0
-    now = datetime.now(CAIRO)
-    ct = CALL_TIME.strip()
-    if "-" in ct:  # تاريخ كامل "2026-11-12 19:00:00"
-        target = datetime.strptime(ct, "%Y-%m-%d %H:%M:%S").replace(tzinfo=CAIRO)
-    else:  # ساعة بس "19:00"
-        h, m = map(int, ct.split(":")[:2])
-        target = now.replace(hour=h, minute=m, second=0, microsecond=0)
-        if (target - now).total_seconds() < -12 * 3600:  # الميعاد بعد نص الليل (بكرة)
-            target += timedelta(days=1)
-    wait = (target - now).total_seconds()
+
+def load_schedule():
+    """يقرأ schedule.json ويتحقق من بنيته."""
+    if not SCHEDULE_FILE.exists():
+        raise FileNotFoundError(f"ملف الجدولة غير موجود: {SCHEDULE_FILE}")
+    with SCHEDULE_FILE.open("r", encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data.get("calls"), list):
+        raise ValueError("schedule.json لازم يحتوي على قائمة calls.")
+    return data
+
+
+def save_schedule(data):
+    """يحفظ الحالات بشكل ذري لتقليل احتمال تلف الملف."""
+    temp_file = SCHEDULE_FILE.with_suffix(".tmp")
+    with temp_file.open("w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    temp_file.replace(SCHEDULE_FILE)
+
+
+def parse_call_datetime(value):
+    """يدعم YYYY-MM-DD HH:MM أو YYYY-MM-DD HH:MM:SS بتوقيت القاهرة."""
+    for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return datetime.strptime(value, fmt).replace(tzinfo=CAIRO)
+        except ValueError:
+            pass
+    raise ValueError(f"صيغة موعد غير صحيحة: {value!r}")
+
+
+def seconds_until_call(target):
+    """يرجع فرق الوقت بالدقائق/الثواني؛ None لو الموعد متأخر أكثر من الحد المسموح."""
+    wait = (target - datetime.now(CAIRO)).total_seconds()
     if wait < -MAX_LATE_MINUTES * 60:
         return None
     return max(wait, 0.0)
 
 
 async def main():
-    if not SISTER_PHONE:
-        print("❌ مفيش رقم (متغير PHONE فاضي). وقفت.")
+    global SISTER_PHONE
+
+    try:
+        schedule = load_schedule()
+    except Exception as e:
+        print(f"❌ تعذر قراءة schedule.json: {e}")
+        return
+
+    now = datetime.now(CAIRO)
+    due_calls = []
+    for index, call in enumerate(schedule["calls"]):
+        if call.get("status", "pending") != "pending":
+            continue
+        phone = str(call.get("phone", "")).strip()
+        if not phone:
+            call["status"] = "failed"
+            call["error"] = "رقم الهاتف فارغ"
+            save_schedule(schedule)
+            continue
+        try:
+            target = parse_call_datetime(str(call.get("datetime", "")))
+        except Exception as e:
+            call["status"] = "failed"
+            call["error"] = str(e)
+            save_schedule(schedule)
+            continue
+
+        wait = seconds_until_call(target)
+        if wait is None:
+            call["status"] = "missed"
+            print(f"⏭️ تخطي {phone}: الموعد {target.strftime('%Y-%m-%d %H:%M')} فات بأكثر من {MAX_LATE_MINUTES} دقيقة.")
+            save_schedule(schedule)
+        elif wait == 0:
+            due_calls.append((index, phone, target))
+
+    if not due_calls:
+        print("مفيش مكالمات مستحقة دلوقتي.")
         return
 
     app = Client("my_account", api_id=API_ID, api_hash=API_HASH)
@@ -804,23 +862,20 @@ async def main():
             detected_sample_rate = getattr(update.format, "rate", 48000)
             detected_channels = getattr(update.format, "channels", 2)
 
-        now = asyncio.get_event_loop().time()
+        now_loop = asyncio.get_event_loop().time()
         cap = int(bytes_per_second() * PRE_ROLL_SECONDS)
 
         for frame in update.frames:
             data = frame.frame
             level = calculate_rms(data)
             thr = voice_threshold()
-
-            # تتبّع مستوى الضوضاء الخلفية عشان حد الكلام يتظبط لوحده
             if level <= thr:
                 noise_floor = 0.98 * noise_floor + 0.02 * level
-
             if is_recording:
                 recorded_audio_buffer.extend(data)
                 if level > thr:
                     voiced_bytes += len(data)
-                    last_voice_time = now
+                    last_voice_time = now_loop
                     if voiced_bytes >= bytes_per_second() * MIN_SPEECH_SECONDS:
                         has_spoken = True
             else:
@@ -830,18 +885,22 @@ async def main():
 
     await app.start()
     await call_py.start()
+    try:
+        for index, phone, target in due_calls:
+            call = schedule["calls"][index]
+            # نكتب running قبل الاتصال حتى لا يعيد Trigger لاحق الاتصال بنفس الرقم.
+            call["status"] = "running"
+            call["started_at"] = datetime.now(CAIRO).strftime("%Y-%m-%d %H:%M:%S")
+            save_schedule(schedule)
 
-    wait = seconds_until_call()
-    if wait is None:
-        print(f"⏭️ الميعاد {CALL_TIME} فات بأكتر من {MAX_LATE_MINUTES} دقيقة، تم التخطي.")
+            SISTER_PHONE = phone
+            print(f"📞 موعد مستحق: {phone} — {target.strftime('%Y-%m-%d %H:%M')}")
+            success = await start_smart_call(app, call_py)
+            call["status"] = "completed" if success else "failed"
+            call["finished_at"] = datetime.now(CAIRO).strftime("%Y-%m-%d %H:%M:%S")
+            save_schedule(schedule)
+    finally:
         await app.stop()
-        return
-    if wait > 0:
-        print(f"هستنى {int(wait)} ثانية لحد {CALL_TIME} بتوقيت القاهرة")
-        await asyncio.sleep(wait)
-
-    await start_smart_call(app, call_py)
-    await app.stop()
 
 
 if __name__ == "__main__":
