@@ -1,10 +1,8 @@
-
 name: Scheduled Telegram Calls
 
 on:
-  repository_dispatch:
-    types: [run-scheduled-calls]
-
+  schedule:
+    - cron: '*/15 * * * *'  # بيشتغل لوحده كل 15 دقيقة يشيك لو فيه مكالمة في ميعادها
   workflow_dispatch:
 
 permissions:
@@ -22,8 +20,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -51,9 +47,9 @@ jobs:
       - name: Save updated schedule
         if: always()
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add schedule.json
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add schedule.json || true
           git diff --cached --quiet || (
             git commit -m "Update call schedule status" &&
             git push
