@@ -1,6 +1,9 @@
 name: Scheduled AI Call
 
 on:
+  repository_dispatch:
+    types: [run-scheduled-calls]
+
   workflow_dispatch:
     inputs:
       phone:
