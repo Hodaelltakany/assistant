@@ -38,7 +38,7 @@ ELEVENLABS_VOICE_ID = "pFZP5JQG7iQjIQuC4Bku"
 # بحث الويب المدمج في Groq (موديلات compound) بنفس مفتاح Groq من غير كريدتس إضافية
 GROQ_SEARCH_MODELS = ["groq/compound-mini", "groq/compound"]
 
-OWNER_NAME = "هدى"            # صاحبة المساعدة (مش اللي بتكلمها سلمى)
+OWNER_NAME = "صديقتك"            # صاحبة المساعدة (مش اللي بتكلمها سلمى)
 ASSISTANT_NAME = "سلمى"
 SISTER_PHONE = "+201221264506"
 CALL_TIME = ""               # فاضي = فوراً، أو "2026-11-12 19:00:00"
